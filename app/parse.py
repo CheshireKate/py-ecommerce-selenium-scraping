@@ -13,7 +13,7 @@ from selenium.webdriver.common.by import By
 BASE_URL = "https://webscraper.io/"
 HOME_URL = urljoin(BASE_URL, "test-sites/e-commerce/more/")
 
-driver: webdriver = None
+_driver: webdriver = None
 
 PAGES = {
     "home": "https://webscraper.io/test-sites/e-commerce/more",
@@ -25,10 +25,10 @@ PAGES = {
 }
 
 def get_driver() -> selenium.webdriver:
-    return driver
+    return _driver
 
 def set_driver(driver_to_set) -> None:
-    global driver
+    global _driver
     _driver = driver_to_set
 
 @dataclass
@@ -54,37 +54,35 @@ def parse_additional_info(product_soup: Tag) -> dict:
 
     for button in buttons:
         if not button.get_property("disabled"):
-            additional_info[btn] = int(price.replace("$", ""))
+            additional_info[btn] = int(price.text.replace("$", ""))
             button.click()
 
     return additional_info
 
 
 def parse_a_product(product_soup: Tag) -> Product:
-    absolute_url = urljoin(BASE_URL, product_soup.select_one(".card.thumbnail a")["href"])
     driver = get_driver()
-    driver.get(absolute_url)
     additional_info = parse_additional_info(product_soup)
     return Product(
-        title = driver.find_element(By.CLASS_NAME, "title").text,
-        description = driver.find_element(By.CLASS_NAME, "description").text,
-        price = float(driver.find_element(By.CLASS_NAME, "price").replace("$", "")),
-        rating = driver.find_element(By.CLASS_NAME, "rating"),
-        num_of_reviews = driver.find_element(By.CLASS_NAME, "review-count").text,
+        title = driver.find_element(By.CSS_SELECTOR, "title").text,
+        description = driver.find_element(By.CSS_SELECTOR, "description").text,
+        price = float(driver.find_element(By.CSS_SELECTOR, "price").replace("$", "")),
+        rating = int(driver.find_element(By.CSS_SELECTOR, "rating")),
+        num_of_reviews = driver.find_element(By.CSS_SELECTOR, "review-count").text,
         additional_info = additional_info,
     )
 
 def parse_page(page_url: str) -> list[Product]:
     driver = get_driver()
-    products = []
     more = driver.find_element(By.CLASS_NAME, "ecomerce-items-scroll-more")
     driver.get(page_url)
 
-    while True:
-        try:
-            more.click()
-        except:
-            break
+    if more:
+        while True:
+            try:
+                more.click()
+            except:
+                break
 
     soup = BeautifulSoup(driver.page_source, "html.parser")
     product_elements = soup.select(".thumbnail")
@@ -108,9 +106,10 @@ def get_all_products() -> None:
     for page in PAGES:
         products += parse_page(page)
 
-    to_csv(products, driver)
+    to_csv(products, _driver)
 
 
 
 if __name__ == "__main__":
+    set_driver(webdriver.Safari)
     get_all_products()
